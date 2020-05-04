@@ -1,6 +1,7 @@
 import skimage.io
 from PIL import Image
 import numpy as np
+import torch
 
 def open_tiff_image(path, level=2):
     """
@@ -26,3 +27,11 @@ def crop_to_mask(im, mask):
     out = im[top_left[0]:bottom_right[0],
                 top_left[1]:bottom_right[1]]
     return out
+
+def show_im(data):
+    if isinstance(data, Image.Image):
+        return data
+    if isinstance(data, np.ndarray):
+        return Image.fromarray(data)
+    if isinstance(data, torch.Tensor):
+        return Image.fromarray(data.cpu().detach().numpy())
