@@ -2,6 +2,10 @@ import skimage.io
 from PIL import Image
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+import math
+
+from components.utils import denorm
 
 def open_tiff_image(path, level=2):
     """
@@ -35,3 +39,16 @@ def show_im(data):
         return Image.fromarray(data)
     if isinstance(data, torch.Tensor):
         return Image.fromarray(data.cpu().detach().numpy())
+
+def show_batch(dataset, n=16, denorm=False, figsize=(12,12), random=True):
+    "Visualise a batch of a dataset"
+    r = math.ceil(math.sqrt(n))
+    axes = plt.subplots(r,r,figsize=figsize)[1].flatten()
+    for i,ax in enumerate(axes):
+        if i<n:
+            im,label = dataset[np.random.randint(len(ds))] if random else ds[i]
+            if isinstance(im, torch.Tensor):
+                im = denorm(im)
+            ax.imshow(im)
+            ax.set_title(f'{label}')
+        ax.set_axis_off()
