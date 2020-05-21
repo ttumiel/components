@@ -36,3 +36,30 @@ class Hooks(Hook):
     def remove(self):
         for h in self.hooks:
             h.remove()
+
+
+def capture_activations_hook(hook_cls, m, i, o, display=False):
+    if not hasattr(hook_cls, 'act_mean'): hook_cls.act_mean = []
+    if not hasattr(hook_cls, 'act_std'): hook_cls.act_std = []
+    if m.training:
+        hook_cls.act_mean.append(o.mean())
+        hook_cls.act_std.append(o.std())
+
+    if display:
+        data = [o.mean(), o.std()]
+        print("{:^16}".format(m.__class__.__name__), ("|{:^10.5f}"*len(data)).format(*data))
+
+
+def capture_params_hook(hook_cls, m, i, o, display=False):
+    if not hasattr(hook_cls, 'param_mean'): hook_cls.param_mean = []
+    if not hasattr(hook_cls, 'param_std'): hook_cls.param_std = []
+    if m.training:
+        hook_cls.param_mean.append(m.weight.detach().mean())
+        hook_cls.param_std.append(m.weight.detach().std())
+
+    if display:
+        data = [m.weight.mean(), m.weight.std()]
+        if bias and hasattr(m, 'bias') and m.bias is not None:
+            data += [m.bias.mean(), m.bias.std()]
+        print("{:^16}".format(m.__class__.__name__), ("|{:^10.5f}"*len(data)).format(*data))
+
