@@ -1,12 +1,20 @@
+import torch
+from functools import partial
+
 class Hook():
     "Utility class for creating and destroying a pytorch hook."
-    def __init__(self, module, hook_fn, forward_pass=True):
+    def __init__(self, module, hook_fn, forward_pass=True, detach=True, clone=False):
         self.module = module
         self.hook_fn = hook_fn
+
+        def _hook(m,i,o):
+            self.hook_fn(self, m, clone_detach(i, detach, clone), clone_detach(o, detach, clone))
+
+        self._hook = _hook
         if forward_pass:
-            self.hook = self.module.register_forward_hook(hook_fn)
+            self.hook = self.module.register_forward_hook(_hook)
         else:
-            self.hook = self.module.register_backward_hook(hook_fn)
+            self.hook = self.module.register_backward_hook(_hook)
 
     def remove(self):
         self.hook.remove()
@@ -60,3 +68,17 @@ def capture_params_hook(hook_cls, m, i, o, display=False):
             data += [m.bias.mean(), m.bias.std()]
         print("{:^16}".format(m.__class__.__name__), ("|{:^10.5f}"*len(data)).format(*data))
 
+
+
+def clone_detach(tensor, detach, clone):
+    if isinstance(tensor, tuple):
+        if detach:
+            tensor = tuple(v.detach() for v in tensor)
+        if clone:
+            tensor = tuple(v.clone() for v in tensor)
+    elif isinstance(tensor, torch.Tensor):
+        if detach:
+            tensor = tensor.detach()
+        if clone:
+            tensor = tensor.clone()
+    return tensor
