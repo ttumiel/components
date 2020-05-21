@@ -25,13 +25,10 @@ class Hook():
 
 class Hooks(Hook):
     "Create hooks on each item of a list of modules."
-    def __init__(self, modules, hook_fn, forward_pass=True):
+    def __init__(self, modules, hook_fn, forward_pass=True, detach=True, clone=False):
         self.module = modules
         self.hook_fn = hook_fn
-        if forward_pass:
-            self.hooks = [m.register_forward_hook(hook_fn) for m in self.module]
-        else:
-            self.hooks = [m.register_backward_hook(hook_fn) for m in self.module]
+        self.hooks = [Hook(m, hook_fn, forward_pass, detach, clone) for m in self.module]
 
     def remove(self):
         for h in self.hooks:
