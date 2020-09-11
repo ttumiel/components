@@ -29,25 +29,34 @@ def grad_callback(cb, module):
 class Telemetry():
     def __init__(self, module, entry, activations=True, parameters=True, grads=True):
         self.module = module
-        self.entries = find_all(self.module, entry)
+        self.activations, self.parameters, self.grads = activations, parameters, grads
+        self.entries, self.names = find_all(self.module, entry, path=True)
         self.hooks = OrderedDict()
-        self.names = [c.__class__.__name__+'_'+str(i) for i,c in enumerate(self.entries)]
-        if activations:
+        self._add_hooks()
+
+    def _add_hooks(self):
+        if self.activations:
             self.hooks['act'] = Hooks(self.entries, capture_activations_hook)
-        if parameters:
+        if self.parameters:
             self.hooks['param'] = Hooks(self.entries, capture_params_hook)
-        if grads:
+        if self.grads:
             self.hooks['grad'] = Callbacks(self.entries, grad_callback)
             def on_after_backward(): self.hooks['grad']()
             self.module.on_after_backward = on_after_backward
 
     def remove(self):
+        self.module.on_after_backward = None
         for k,v in self.hooks.items():
             if k != 'grad':
                 v.remove()
+        self.hooks = OrderedDict()
 
     def __del__(self):
         self.remove()
+
+    def reset(self):
+        self.remove()
+        self._add_hooks()
 
     def plot(self):
         f,ax = plt.subplots(len(self.hooks),2, figsize=(15,25))

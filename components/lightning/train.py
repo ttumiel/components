@@ -3,7 +3,7 @@ import os
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from components.lightning import TableLogger, GridSearchLogger
+from components.lightning import TableLogger, GridSearchLogger, Telemetry
 from components.search import grid_search, is_search
 
 # TODO: add telemetry hook
@@ -27,7 +27,7 @@ def train(module, *args, max_epochs=2, logger='table_logger',
     if telemetry:
         # Hook into all conv layers and add layer telemetry for the activations and gradients.
         # could also add tensorboard histogram of layers
-        callbacks = []
+        t = Telemetry(module, torch.nn.Conv2d)
 
     # callbacks += [LearningRateLogger()]
 
@@ -55,6 +55,9 @@ def train(module, *args, max_epochs=2, logger='table_logger',
             **kwargs
             )
             trainer.fit(module)
+            if telemetry:
+                t.plot()
+                t.reset()
     else:
         checkpoint_callback = ModelCheckpoint(
             filepath=logger.path,
@@ -75,3 +78,8 @@ def train(module, *args, max_epochs=2, logger='table_logger',
             **kwargs
         )
         trainer.fit(module)
+        if telemetry:
+            t.plot()
+
+    if telemetry:
+        t.remove()
