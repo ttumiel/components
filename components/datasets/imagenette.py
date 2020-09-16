@@ -1,18 +1,24 @@
 from pathlib import Path
 from torchvision import datasets
 from components.transforms.basic import get_transforms_torchvision
-from components.datasets.download import download, unpack_data
+from components.datasets.download import download_file, unpack_data
 
 imagenette_mean = [0.4616, 0.4538, 0.4254]
 imagenette_std = [0.2681, 0.2643, 0.2865]
 
 def imagenette(path, imsize, download=False, **kwargs):
-    "Utility function to download Imagenette dataset"
+    """Utility function to download Imagenette dataset. I tend
+    to save datasets to ~/datasets but you can save it anywhere.
+    The dir will be created if it doesn't exist.
+
+    Returns (tuple):
+        train_ds, val_ds
+    """
     path = Path(path)
     if download:
         path.mkdir(exist_ok=True)
         url = imagenette_url(imsize)
-        download(path/Path(url).name, url)
+        download_file(path/Path(url).name, url)
         unpack_data(path/url.name)
     train_tfms, val_tfms = get_transforms_torchvision(imsize, imagenette_mean, imagenette_std, **kwargs)
     train_ds = datasets.ImageFolder(path/'train', transform=train_tfms)
@@ -22,7 +28,7 @@ def imagenette(path, imsize, download=False, **kwargs):
 def imagenette_url(imsize):
     if imsize <=160:
         return 'https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-160.tgz'
-    elif imsize < 320:
+    elif imsize <= 320:
         return 'https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-320.tgz'
     else:
         return 'https://s3.amazonaws.com/fast-ai-imageclas/imagenette2.tgz'
