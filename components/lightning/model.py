@@ -1,17 +1,22 @@
-import torch
+import torch, math
 import pytorch_lightning as pl
 import multiprocessing as mp
 from torch.utils.data import DataLoader
+from collections import OrderedDict
+
 from components.utils import AttrDict
+from components.conv import init_cnn_
 
 
 default_hparams = AttrDict({
     'lr': 1e-3,
     'bs': 64,
     'wd': 1e-6,
-    'num_workers': mp.cpu_count()
+    'num_workers': mp.cpu_count()-1,
+    'scheduler': 'one_cycle'
 })
 
+# TODO: add optim
 class LightningModel(pl.LightningModule):
     """
     A lightning module that can be used to easily set up and run
@@ -37,6 +42,7 @@ class LightningModel(pl.LightningModule):
         p = {**default_hparams}
         p.update(hparams)
         self.hparams = p
+        self.lrs = []
 
     def forward(self, x):
         return self.model(x)
@@ -45,6 +51,7 @@ class LightningModel(pl.LightningModule):
         x, y = batch
         preds = self(x)
         loss = self.loss_fn(preds, y)
+        self.lrs.append(self.trainer.optimizers[0].param_groups[0]['lr'])
 
         metrics = {f'train/{f.__name__}': f(preds, y) for f in self.metrics}
         logs = OrderedDict({
@@ -89,9 +96,22 @@ class LightningModel(pl.LightningModule):
             'frequency': x
         }
         """
+
         optim = torch.optim.Adam(self.parameters(), lr=self.hparams['lr'], weight_decay=self.hparams['wd'])
-        sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode='min', factor=0.5, patience=2, cooldown=1, min_lr=5e-5)
-        return [optim], [sched]
+
+        if self.hparams['scheduler'] == 'one_cycle':
+            len_dl = len(self.train_dataloader())
+            sched = torch.optim.lr_scheduler.CyclicLR(optim, self.hparams['lr']/100, self.hparams['lr'], math.floor(len_dl*0.2),
+                math.ceil(len_dl*0.8), gamma=0.99994, mode='exp_range', cycle_momentum=False)
+            sched = [{'scheduler': sched, 'interval': 'step'}]
+        elif self.hparams['scheduler'] == 'reduce':
+            sched = [torch.optim.lr_scheduler.ReduceLROnPlateau(optim, mode='min', factor=0.5, patience=2, cooldown=1, min_lr=5e-5)]
+        else:
+            assert callable(self.hparams['scheduler'])
+            sched = self.hparams['scheduler'](optim)
+        # sched_1cycle = torch.optim.lr_scheduler.OneCycleLR(optim, self.hparams['lr'], total_steps=len(self.train_ds)//self.hparams['bs']+1)
+
+        return [optim], sched
 
     def train_dataloader(self):
         return DataLoader(self.train_ds,
@@ -118,3 +138,6 @@ class LightningModel(pl.LightningModule):
     def test_epoch_end(self, outputs):
         preds = torch.cat([x['preds'] for x in outputs])
         return {'preds': preds}
+
+    def reset(self):
+        self.model.apply(init_cnn_)
